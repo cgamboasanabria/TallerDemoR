@@ -1,0 +1,337 @@
+---
+title: "Día 1. R + RStudio"
+subtitle: "Base"
+output:
+  prettydoc::html_pretty:
+    theme: hpstr
+    highlight: github
+    toc: yes
+    toc_depth: 2
+  html_notebook:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, results = "hide")
+```
+
+
+# El proyecto Taller
+Un proyecto es el marco en el cual realizás tu investigación o trabajo. Contiene los insumos, procesos y resultados. Podemos crear uno desde el menú.   
+Lo caracteriza una dirección de trabajo, donde se ubica el archivo con extensión **R.proj**. En general, para conocer "donde estamos" y que objetos hay allí utilizamos los siguientes comandos:
+
+```{r}
+getwd()
+ls()
+```
+
+# Aspectos básicos
+
+Para adentrarnos en las características de **R**, trabajaremos con un **hogar**. Pero... ¿qué es un hogar? Es una unidad de análisis demográfica, definida censalmente: "se entiende por hogar una persona que vive sola o un grupo de personas que pueden o no estar emparentadas pero que comparten el presupuesto para los gastos de alimentación" (ONU, 2011). Se puede confundir con las definiciones de _vivienda_ y *familia*. La operacionalización censal ("de hecho"") es:
+
+![fuente: https://www.indec.gob.ar/indec/web/Nivel3-Tema-2-41](figs/HogarCenso.png)
+
+<br>
+
+Creemos un *script* nuevo y empecemos a conocer el lenguaje de R caracterizando uno de los miembros **mi** hogar.
+
+## Variables
+
+La asignación de variables (y de todo tipo de objeto) se realiza mediante el operador **<-** (veáse la direccionalidad *NombreObjeto <- valor*):
+
+```{r}
+edad <- 34 
+```
+
+El nombre del objeto no puede iniciarse con números, y no puede incluir comma u otros caracteres especiales. También se puede usar __=__. ¿Qué usar? 
+
+Para ver el contenido del objeto, simplemente lo mencionamos en la consola:
+```{r}
+edad 
+```
+
+¿Es igual?  
+```{r}
+edad == 50 
+```
+
+¿Es menor que...?  
+```{r}
+edad < 40 
+```
+
+Otras operaciones lógicas son: *>*, *<=*, *>=*, *!= (distinto)* , etc. (luego veremos algunas más).  
+
+Las operaciones sin asignación no cambian el valor de la variable
+```{r}
+edad + 10
+```
+
+¡Atención! Sensible a mayúsculas:
+```{r}
+Edad <- 45
+Edad != edad
+```
+
+Los tipo de variable más relevantes son:  
+
+* *numeric* (decimales con ".")
+```{r}
+altura <- 1.72  
+```
+
+* *character* (string)  
+```{r}
+nombre <- "Iván"
+
+# veo de qúe clase es este objeto...
+class(nombre)
+```
+
+* *lógicas* (boolean)  
+```{r}
+GranProfe <- TRUE
+GranProfe == F
+```
+
+La ausencia de valor se representa con **NA** (missing/vacío):
+```{r}
+Es_Ordenado_En_La_Casa <- NA 
+
+#un operador lógico  importante es preguntar si un objeto es vacío:
+is.na(Es_Ordenado_En_La_Casa)
+```
+
+¿Cómo comento?
+```{r}
+# Como venimos haciendo ;)
+# ¿Buenas prácticas?
+```
+
+***
+
+## Vectores
+
+Es la estructura de datos más simple en R (los objetos anteriores eran vectores de 1 elemento). Un vector es un arreglo de elementos del mismo tipo (*compruébalo*). Inicializamos un vector **c**ombinando elementos mediante **c(...)**. Por ejemplo `c(1,2,3)`.  
+
+¿Cómo se listan los miembros de un hogar en un censo?
+
+![fuente: en base a https://www.indec.gob.ar/indec/web/Nivel3-Tema-2-41](figs/censoListaMiembros.png)
+
+Ahora sí te presento mi hogar. Somos 6 miembros, cada uno con atributos diferentes:
+
+```{r}
+name_padres <- c("Horacio", "José")
+name_hijos <- c("Iván", "Facundo", "Cristian", "Florencia")
+name <- c(name_padres, name_hijos) # unión de vectores mediante c(), los apilo
+edad <- c(59, 58, 32, 30, 25, 25)
+f_nacim = c("01/01/1960", "05/11/1961", "11/08/1985", "21/01/1987", "23/10/1993","30/10/1993")
+sexo <- c("v", "m", "v", NA, "v", "m")
+
+# ¿Acabo de "pisar" un objeto?
+```
+
+¿Qué tipo de objetos son? ¿Qué información contienen? Algunas funciones útiles de exploración...
+```{r}
+class(edad)           # tipo de objeto
+length(f_nacim)       # cantidad de elementos de un vector
+str(name)             # estructura
+summary(sexo)         # resumen de elementos
+table(sexo)           # frecuencia
+```
+
+En el vector *f_nacim* querríamos un tipo de dato *fecha*. La función base para cambio de *tipos* comienza con *as*. Utilicemos el predictor de comando, a ver qué nos sugiere... (presiona *"as."+TAB*). Para conocer qué operación realiza una función podemos pedir ayuda sin salir de RStudio, anteponiendo *"?"*. ¿Qué información nos brinda?
+
+```{r}
+# Debemos especificar el formato de días, fechas y años, para que R pueda interpretar
+f_nacim <- as.Date(f_nacim, format = "%d/%m/%Y") # ¿qué significa esto?
+class(f_nacim)
+```
+
+¿Cómo extraer información de un vector? con **[...]**. Por ejemplo, el nombre de la cuarta persona listada en mi hogar.
+
+```{r}
+name[4]
+```
+
+¿Y de los tres últimos? Incluyo como referencia un vector de posiciones `c(4,5,6)`.
+
+```{r}
+name[c(4,5,6)] 
+name[4:6] # equivalente
+```
+
+Veamos que pasa con los operadores lógicos que vimos en las variables...
+```{r}
+name == "maría"
+edad < 54
+```
+
+¿Y comparando entre elementos?
+
+```{r}
+f_nacim[1] < f_nacim # ¿esta ok esto?
+```
+
+¿Y en qué orden fui listado yo? (*In which position...?*)
+```{r}
+which(name=="Iván")
+```
+
+¿Quiénes me caen bien? Puedo usar un operador lógico o el símbolo **"-"** para excluir una posición (y dejar el resto).
+```{r}
+name[name!="Cristian"]
+
+# óoooo...
+
+posicion_de_Cristian <-  which(name=="Cristian")
+name[-posicion_de_Cristian]
+```
+
+Medidas resúmen útiles son:
+```{r}
+mean(edad)
+min(f_nacim)
+```
+
+Un aspecto importante de R: vectorizar operaciones. ¿Cual será la edad de los miembros de mi hogar en un año, en dos o en 10 años?
+
+```{r}
+edad1 = edad + 1
+edad10 = edad + 10
+edad1; edad10 # uso de ";"
+```
+
+### `r icon::fa("wrench")` Actividad guiada
+
+* ¿Cómo se llama la segunda persona listada? Obtén el nombre utilizando **"[]"**.
+* Obtén el rango de la edad del hogar.  
+* ¿En qué fecha nació Florencia? Utiliza su nombre para la selección.
+* Mediante `Sys.Date()` puedes tener la fecha de hoy (guárdala en una variable si prefieres). Calcula la edad exacta de los miembros, y la edad cumplida.
+* ¿Puedes decir si el respondente informó correctamente la edad de los miembros?
+* Crea los vectores nombre, edad, sexo y fecha de nacimiento de un grupo de 5 personas que formen *tu* hogar (ojo con el orden). 
+* ¿Qué preguntas te resultarían interesantes responder?
+
+***
+
+## data.frames
+
+Una matriz es un arreglo de vectores *numéricos*. Generemos una con la *proyección* anterior...
+
+```{r}
+# presta atención a la información que solicita como argumento la creación de una matriz. Experimentemos...
+proyeccion <- matrix(c(edad, edad1, edad10), nrow = 6, ncol = 3, byrow = F)
+```
+
+Si queremos mezclar tipos de datos podemos utilizar un *data.frame*. Construyamos la base de datos de mi hogar. Antes de continuar: si queremos reemplazar "name" por "nombre", podemos utilizar lo que nos ofrece RStudio como editor de texto (*CRTL+f*), o crear un vector idéntico y eliminar el anterior.
+
+```{r}
+nombre <- name
+rm(name) # removerrrr (bienvenido si no quieres ir dejando basura pesada por allí)
+```
+
+Hagamos un data.frame con los atributos de los miembros.
+
+```{r}
+hogar <- data.frame(nombre, sexo, edad, f_nacim, stringsAsFactors = F) 
+hogar
+```
+
+¿Características?
+
+```{r}
+class(hogar)
+str(hogar)
+summary(hogar)
+names(hogar)
+ncol(hogar)
+nrow(hogar)
+```
+
+Las variables de un *df* pueden ser seleccionadas mediante el signo *$* (y tambien  modificadas en sus propiedades). Por ejemplo:
+
+```{r}
+# ver el contenido de una variable...
+hogar$sexo
+hogar[,"sexo"]
+
+# Tambien vale la selección por posición: hay alguien que no se reconoce en la dicotomía...
+hogar$nombre[is.na(hogar$sexo)]
+```
+
+También podemos seleccionar datos mediante coordenas del tipo *[fila, columna]*, o condicionado a la variable elegida.
+
+```{r}
+hogar[2,3]
+hogar$edad[2]
+hogar[2,] # ¿Y esto?
+hogar[,2] # ¿Y esto cuando lo vimos?
+```
+
+Anteriormente, al crear el data.frame, forcé la no existencia de variables de tipo **factor**. Los tipos de variable *factor* son variables categóricas (nominales u ordinales), con niveles y etiquetas. Son muy relevantes para algunos paquetes, como *ggplot2*. Por ejemplo, podemos agregar la variable *relación de parentezco* respecto al jefe del hogar (o persona de referencia, según la definición).
+
+```{r}
+hogar$rp = factor(c("jefe", "cónyuge", "hije", "hije", "hije", "hije"))
+class(hogar$rp)
+str(hogar$rp)       # para R siempre la variable será esencialmente un entero
+summary(hogar$rp)
+levels(hogar$rp)
+nlevels(hogar$rp)
+```
+
+Al parecer el jefe era un año mayor. Lo asigno:
+
+```{r}
+hogar$edad[hogar$rp=="cónyuge"] = 59  # ¿Cómo se lee esto?
+```
+
+¿Te preguntarás si hay vida más allá de los data.frame? Por supuesto, las **listas**. Una lista es una colección de data.frames. Para acceder a un elemento de la lista utilizamos doble corchete. Por ejemplo si formo mi propio hogar, el listado de hogares tendría dos data.frame:
+
+```{r}
+me_voy_de_casa <- hogar[3,]
+hogar_sin_mi <- hogar[-3,] 
+lista_de_hogares <- list(me_voy_de_casa, hogar_sin_mi)
+
+# inspecciono
+str(lista_de_hogares)
+
+# el primer hogar del listado!
+lista_de_hogares[[1]]
+
+# el nombre del miembro 3 del segundo hogar
+lista_de_hogares[[2]]$nombre[3]
+```
+
+¡Atención!¿Los datos del hogar unipersonal son correctos?
+
+Considerando que no llego a fin de mes, decido incorporarme de nuevo al hogar inicial. ¿Cómo incorporo nuevas observaciones a un data.frame? 
+
+```{r}
+hogar2 <- rbind(hogar_sin_mi, me_voy_de_casa)
+
+hogar3 <- hogar_sin_mi
+hogar3[6,] <- me_voy_de_casa
+
+# Los hogares 2 y 3 son equivalentes?
+```
+
+
+### `r icon::fa("wrench")` Actividad  guiada
+
+* Crea un *data.frame* con los miembros de *tu* hogar, a partir de los vectores creados anteriormente. 
+* Agrega la variable relación de parentezco como factor. ¿Cómo es esa distribución?  
+* Cambia el formato de esta última variable a "character".  
+* Obtén todos los datos del segundo miembro listado con el uso de **[]**.  
+* Cambia el sexo al tercer miembro y devuelve su nombre con el uso de **[]**.  
+* Luis, varón y nacido el 3 de junio del 2000, avisa que quiere ser censado en su hogar unipersonal. Incorpóralo a la lista de hogares.  
+* Luis y vos deciden vivir juntos, uniéndolos un lazo de amistad (al menos públicamente es lo que se conoce). Múdalo a tu hogar con R (acuérdate de eliminar el hogar de Luis asignando *NULL* a ese elemento de la lista).
+
+***
+### Feedback
+[¿Qué te gustaría profundizar un poco más el próximo encuentro?](https://PollEv.com/ivanwilliams265)
+
+***
+## Recursos Adicionales  
+*[Hoja de ayuda](https://rstudio.com/wp-content/uploads/2016/05/base-r.pdf)  
+*[Libros en español](https://statsanddatasci.netlify.com/post/libros-en-espa%C3%B1ol/)  
+

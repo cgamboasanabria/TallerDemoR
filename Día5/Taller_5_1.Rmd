@@ -1,0 +1,99 @@
+---
+title: "Día 5. Reportes"
+subtitle: "Introducción a RMarkdown"
+output:
+  prettydoc::html_pretty:
+    theme: hpstr
+    highlight: github
+    toc: no
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Comunicación y Reproducibilidad
+
+Hasta aquí fuimos realizando el siguiente flujo:
+
+>importar -> manipular (ordernar+transformar) -> calcular/modelar -> visualizar
+
+Lo que resta: **Cómo comunicarlo**.
+
+Para esto aprenderemos las nociones básicas de [RMarkdown](https://rmarkdown.rstudio.com/), que permite integrar **texto + código + resultados**, permitiendo la reproducibilidad que comentamos al inicio del taller.
+
+Aquí veremos la opción para generar documentos/reportes pensando en diseñar tu próximo paper o informe de resultados. Existe otra opción donde además de comunicar *texto + resultados*, comunicás código, es el tipo de salida [notebook](https://es.r4ds.hadley.nz/formatos-de-r-markdown.html#notebooks).
+
+Te propongo crear un documento RMarkdown mediante el template por defecto de RStudio, e ir comentando sus componentes y funcionalidad. Ten a mano la [Hoja de Ayuda](https://rstudio.com/wp-content/uploads/2016/03/rmarkdown-cheatsheet-2.0.pdf). 
+
+¡Antes que nada! Veamos que genera. Debemos ejecutar *Knit*, mediante el botón en el menú o *Ctrl + Shift + K* (internamente RStudio, mediante el paquete [knitr](https://en.wikipedia.org/wiki/Knitr), integra el documento [markdown](https://en.wikipedia.org/wiki/Markdown) con los resultados del código en R, para que luego el paquete [pandoc](https://pandoc.org/) lo convierta al tipo que deseás).
+
+Lo que acabas de ver es un tipo de salida _html_, pero puedes lograr un pdf o word también. Ahora bien, la estructura de todo documento RMarkdown tiene tres partes: **YAML** (o cabezal), el **texto** y los **chunks**. 
+
+* En YAML se explicitan las propiedades generales del documento, siendo las principales: título, autor, formato de salida, fecha en que se produzco e índice (*t*able *o*f *c*ontents). Se ubica al inicio, ...
+
+* En el segundo escribimos jerárquicamente el documento, señalizando esto mediante sucesivos asteri`s`cos`. ` (esto será importante si quieres dejar visible un índice). Por ejemplo los títulos, subtítulos tendrán `#` y `##` (esto será importante si quieres dejar visible un índice). . Imagínate las funcionalidades cuando escribes en Word, esto es similar: cursiva `*cursiva*`, negrita `**negrita**`,  ecuaciones x^2 `$x^2$`, hipervínculos `[link](www.rstudio.com)` etc. El salto de párrafo se realiza mediante dos espacios o doble enter.
+
+* Finalmente en los **chunks** escribimos ¡CÓDIGO!, lo que se va generando en la sesión del documento. Los insertas mediante el botón en el menú o combinando las teclas *Ctrl + Alt + I*. Como atributos principales de los chunks se encuentran: `r` señalando el lenguaje, un nombre, `eval` (¿corro el chunk?), `echo` (¿Muestro el código?),  `message` (¿muestro los mensajes del proceso?). Inspeccionemos un poco esto jugando con alguna función (fijate que pueden generarse líneas de código [en el medio de una oración](https://rmarkdown.rstudio.com/lesson-4.html), **lo necesitarás en el TP**).
+
+
+## `r icon::fa("wrench")` Actividad guiada
+Hagamos un documento a partir del template creado. Desde la secretaría de vivienda estan preocupados por la situación habitacional de los porteños, y nos solicitan un breve reporte sobre el porcentaje de viviendas particulares no habitadas según Comuna, en lo posible segmentando tres grupos mediante un mapa. Para esto nos valdremos de lo realizado en el día 4, pero cambiando el indicador y la definición de la paleta. El reporte deberá contener los siguientes contenidos mínimos: de donde obtuvimos la información, señalar cuantas viviendas hay en total y cuantas habitadas, un mapa que visualice esa situación y un pequeño comentario. Ensayemos primero la construcción del mapa:
+
+```{r, message=F}
+library(rgdal)
+library(tidyverse)
+library(spdplyr)
+library(leaflet)
+
+# leo Shapefile y convierto a número algunas variables que me servirán
+CABA <- readOGR("Data/pxdptodatosok.shp", encoding = 'UTF-8', verbose = F) %>% 
+        filter(codpcia %in% "02") %>% 
+        mutate(viv_part_h = as.integer(as.character(viv_part_h)),
+               viv_part = as.integer(as.character(viv_part)),
+               porc_viv_hab = round((1-viv_part_h/viv_part)*100,1))
+
+# A partir una paleta prediseñada, divido en tres grupos de igual tamaño
+qpal <- colorQuantile("YlOrRd", CABA@data$porc_viv_hab, n = 3)             
+
+# genero el mapa
+CABA_map <- leaflet(CABA) %>%
+                addTiles() %>% 
+                addPolygons(fillColor = ~qpal(porc_viv_hab),
+                            color = "grey",
+                            fillOpacity = .5,
+                            popup = ~departamen, 
+                            label = ~paste0(departamen, ": ",porc_viv_hab, "%"))
+CABA_map
+
+```
+
+  Si quisiéramos incluir el dato de cuantas personas había en CABA, lo que debemos incluir como **inline** sería:
+  
+```{r, message=F}
+total_viviendas = sum(CABA@data$viv_part)
+total_viviendas
+```
+Ahora sí! Hagamos nuestro reporte reproducible! Acordate de guardarlo como ejemplo para el tp.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,407 @@
+---
+title: "Día 2. dplyr"
+subtitle: "Funciones básicas"
+output:
+  prettydoc::html_pretty:
+    theme: hpstr
+    highlight: github
+    toc: yes
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE, eval=F}
+knitr::opts_chunk$set(echo = TRUE, results = "hide", message=FALSE)
+```
+
+Antes de iniciar el recorrido por las funciones más importantes de [dplyr](https://dplyr.tidyverse.org/) y comentar su uso, haremos un repaso por las distintas opciones de lectura de datos que nos ofrece R. Primero, ¿Estamos bien parados en el proyecto? Utilicemos la función *getwd()* con ese fín, y en todo caso *setwd()* para posicionarnos en el directorio correcto. Incorporemos todaslas bases de datos a la carpeta "Data", y probemos su existencia mediante `list.files("Data/")`.
+
+A medida que avancemos requeriremos funciones del entorno *tidyverse*. ¿Cómo se instala y activa un paquete?:
+```{r, message=F}
+# install.packages("tidyverse")
+library("tidyverse")
+```
+
+### Lectura de datos
+
+Para mostrar las diversas formas de lectura de datos que ofrece R nos valdremos de la Encuesta Permanente de Hogares (EPH), un operativo estadístico llevado adelante por INDEC con motivo de caracterizar la evolución de los mercados de trabajo de 31 aglomerados urbanos del país. ¿Qué es la [EPH](https://www.indec.gob.ar/ftp/cuadros/sociedad/metodologia_eph_continua.pdf)?. Por ejemplo, si quisiéramos leer la base de datos del primer trimestre de 2019, ¿qué opciones tenemos? Es muy importante aquí que la *ruta* del archivo a leer, sea a partir de la posición de trabajo actual. Si no es así, podemos cambiarlo mediante **setwd()**.  
+
+- Texto plano con separador   
+```{r}
+EPH_1t19_txt <- read.table(file = "Data/usu_individual_t119.txt", header = T, sep = ";")
+```
+
+- Un archivo xls o xlsx, seleccionando la pestaña (y el rango de celdas si lo quisiéramos).  
+```{r, eval = FALSE}
+library(readxl) # pertenece a tidyverse
+EPH_1t19_xls <- read_xls(path = "Data/usu_individual_t119.xls", sheet = 1)
+
+### mmm quiero el rango B3:C5
+read_xls("Data/usu_individual_t119.xls", sheet = 1, range = "B3:C5", col_names = FALSE)
+```
+
+- También podemos leer por espacios delimitados, extensión *.dbf*, *SAS*, *SPSS*, *Stata*, etcéteras... gracias a la librería [foreign](https://cran.r-project.org/package=foreign). Por ejemplo, una base de datos del entorno SPSS:
+```{r, eval = FALSE}
+# install.packages("foreign", dependencies = TRUE)
+library(foreign)
+EPH_1t19_spss <- read.spss("Data/usu_individual_t119.sav", to.data.frame=TRUE) 
+```
+
+- Podemos leer un archivo online, en este caso uno con extensión [*csv*](https://es.wikipedia.org/wiki/Valores_separados_por_comas), la base de microdatos de DEIS (Dirección de Estadísticas e Información en Salud). Vayamos a la [web](http://www.deis.msal.gov.ar/) primero y veamos como obtener el *link*.
+```{r, eval = FALSE}
+DEf17 <- read.csv("http://www.deis.msal.gov.ar/wp-content/uploads/2019/01/DefWeb17.csv", header = T)
+```
+
+- En el caso de EPH la base que queremos esta incluida en un zip. También podemos descargar online una carpeta comprimida, descomprimirla y seleccionar el objeto deseado.
+```{r, eval = FALSE}
+temp <- tempfile()
+download.file("https://www.indec.gob.ar/ftp/cuadros/menusuperior/eph/EPH_usu_1_Trim_2019_txt.zip", temp)
+temp_descomprimido <- unz(temp, "usu_individual_t119.txt")
+Indiv_1t19_txt_zip <- read.table(temp_descomprimido, header = T, sep = ";")
+unlink(temp)
+```
+
+-Taaaaambién podemos recurrir al paquete [eph](https://cran.r-project.org/web/packages/eph/eph.pdf) recientemente creado. Permite no solo leer las bases de datos trimestre a trimestre, sino funciones para obtener muchos resultados y *panelear* olas.
+```{r, eval = FALSE}
+# install.packages("eph")
+library("eph")
+Indiv_1t19_txt_eph = get_microdata(year = 2019, trimester = 1, type = 'individual')
+```
+
+Como verás hay muchas formas de obtener datos (también con conexión a [servidores](https://rpubs.com/FvD/acceder-bases-de-datos-en-r) específicos), pero volvamos a los hogares censales.
+
+***
+
+### Insumo
+
+Trabajaremos con una muestra aleatoria de datos que provienen de un proyecto de investigación expuesto en la conferencia [AEPA17](http://www.redaepa.org.ar/wp-content/uploads/2017/09/PROGRAMA-JORNADAS-AEPA.pdf), y que intentó traducir a microdato cualquier base con formato REDATAM, testeando algunas de sus propiedades para la difusión de datos censales, y cuyos resultados para el censo 2010 de Argentina pueden verse [aquí](http://datar.noip.me/dataset/censo-nacional-de-poblacion-hogares-y-viviendas-2010-cd-redatam). La base allí disponible **NO** es oficial, por lo que sus resultados pueden no ser los [publicados](https://www.indec.gob.ar/indec/web/Nivel4-Tema-2-41-135), pero con motivo del taller nos permite jugar con las herramientas de *dplyr* a nivel de máxima desagregación.  
+
+Ah! Mi hogar reside en la Ciudad Autónoma de Buenos Aires. Escalemos el análisis.
+
+
+####  `r icon::fa("wrench")` Actividad
+* Lee el data.frame *C2010_ToyExample_CABA* (con separador ";") y guárdalo en un objeto llamado _CABA2010br_ (*br* por bruta).  
+* Explora sus componentes.  
+
+```{r, include=F, hide=TRUE}
+CABA2010br = read.csv("Data/C2010_ToyExample_CABA.csv", header = T, sep=";")
+```
+
+***
+
+### Usemos dplyr!
+
+*dplyr* es un componente del set integrado de paquetes [tidyverse](https://www.tidyverse.org/), cuyo fin es generar un entorno de herramientas de análisis de datos en R.  Una de sus ventajas es el uso del pipe **%>%**,  que concatena operaciones sobre el mismo objeto, *verbalizando* el proceso, generando fluidez y mejor lectura para un tercero. En concreto, *dplyr* te atuda a manipular los datos según lo que estás buscando. En los siguientes párrafos iremos viendo sus funciones principales. Activemos la librería:
+
+```{r}
+library(dplyr)
+```
+
+Empecemos a trabajar la base de datos. En base al [cuestionario](https://www.indec.gob.ar/ftp/cuadros/poblacion/cuestionario_ampliado_2010.pdf), quedémonos con algunas variables mediante la función **select**. 
+
+```{r}
+CABA2010 <- select(CABA2010br, P01, P02, P03, P05, HOGAR_ID, VIVIENDA_ID, IDDPTO)
+```
+
+Podemos realizar la misma operación de la mano de **%>%**, no necesitando especificar el objeto como argumento:
+
+```{r}
+CABA2010 <- CABA2010br %>% select(P01, P02, P03, P05, HOGAR_ID, VIVIENDA_ID, IDDPTO)
+```
+
+Si quisiéramos quedarnos solo con las variables de persona podríamos usar `starts_with("P")` dentro de select (o también `P01:P05`, ¡probalo!). Nótese que estamos pisando el mismo objeto. Luego podemos renombrar algunas variables para hacer su uso más fluido, mediante **rename**:
+
+```{r}
+CABA2010 <- CABA2010 %>% rename(Rel_Par = P01, Sexo = P02, Edad = P03, nativo = P05) # NUevoNombre = ViejoNombre
+```
+
+Habrás notado una de sus ventajas: la referencia al nombre de las variables no requiere *$* ni *"..."*. Podemos condensar lo anterior y hacerlo todo en un paso utilizando **%>%**. Implica algo super útil: **un nuevo %>% supone el objeto ya modificado**.
+
+```{r, eval=T}
+CABA2010 <- CABA2010br %>% 
+                rename(Rel_Par = P01, Sexo = P02, Edad = P03, nativo = P05) %>% 
+                select(Rel_Par, Sexo, Edad, nativo, HOGAR_ID, VIVIENDA_ID, V01, IDDPTO, PROV_ID)
+```
+
+¿Lo que estamos generando es un data.frame? ¿Qué es un *tibble*?
+
+Si quisiéramos saber cuántas personas existen en la base, podemos realizar un *summarise* (resumen) de los datos mediante la función *n()* (contar filas):
+
+```{r}
+n_Personas = CABA2010 %>% summarise(n()) 
+```
+
+Para contar cuántas viviendas fueron relevadas en la base debemos considerar casos con valor *distinto* en la variable de código de vivienda:
+
+```{r}
+n_Viviendas = CABA2010 %>% summarise(n_distinct(VIVIENDA_ID))
+```
+
+¿De qué forma podríamos hacer lo anterior en R *base* (*nrow*, *ncol*, *unique*)? La experiencia de usuario de cada uno define el mix de herramientas que le es más cómodo/útil según la complejidad de cada tarea. Aquí exploraremos el camino *dplyr*, la puerta de entrada recomendada al análisis de datos en R. 
+
+####  `r icon::fa("wrench")` Actividad guiada
+* ¿Cuál es el promedio de personas por vivienda?
+* ¿Cuántos hogares hay en la base? 
+* ¿Cuántas personas por hogar, en promedio?  
+* ¿Cuántos hogares por vivienda, en promedio?
+* ¿Podemos incluir todo lo anterior en una sola sentencia?
+```{r, eval=F}
+CABA2010 %>% summarise(Personas = n(), Viviendas = n_distinct(VIVIENDA_ID), Hogares = n_distinct(HOGAR_ID), Personas/Viviendas, Personas/Hogares, Hogares/Viviendas)
+```
+
+
+***
+
+La utilidad de *summarise* se potencia cuando queremos resumir una variable *segmentando por grupos*. Esta agrupación antecede a *summarise*, y requiere se indicada con **group_by**, inlcuyendo como argumento las variables de agrupación. Por ejemplo, para conocer la cantidad de personas y viviendas relevadas por Departamento (Comuna):
+
+```{r}
+PersViv_Dpto <- CABA2010 %>% 
+                    group_by(IDDPTO) %>% 
+                    summarise(Personas = n(), 
+                              Viviendas = n_distinct(VIVIENDA_ID))
+```
+
+Quizás estas cantidades difieren según tipo de vivienda:
+
+```{r}
+PersVivTipo_Dpto <- CABA2010 %>% 
+                    group_by(IDDPTO, V01) %>% 
+                    summarise(Personas = n(), Viviendas = n_distinct(VIVIENDA_ID))
+```
+
+Mediante **mutate** podemos crear variables que se *adicionen* a las ya existentes. Tomando la tabla sin distinguir tipo de vivienda, podemos calcular el ratio de personas por vivienda segun departamento, y redondear su resultado:
+
+```{r, eval=T, results = "hide"}
+PersViv_Dpto <- PersViv_Dpto %>% mutate(ratioPV = Personas / Viviendas)
+
+# mejor redondiemos el resultado
+
+PersViv_Dpto <- PersViv_Dpto %>% mutate(ratioPV = round(Personas / Viviendas, 2)) # ¿Por qué no usamos summarise para esto?
+
+# mutate es "la" herramienta de creación de variables. Ventajas:
+
+PersViv_Dpto %>% mutate(SinSentido1 = log(IDDPTO) / Personas^2 + Viviendas/2,
+                        SinSentido2 = SinSentido1 + 1) 
+```
+
+Para conocer qué departamentos poseen mayor promedio, podemos ordernar la tabla mediante **arrange**:
+
+```{r}
+PersViv_Dpto <- PersViv_Dpto %>% arrange(ratioPV)
+
+# mejor al revés
+PersViv_Dpto <- PersViv_Dpto %>% arrange(desc(ratioPV))
+```
+
+Si solo querés mostrar los tres departamentos con mayor valor, puedes utilizar **top_n**:
+
+```{r}
+PersViv_Dpto %>% top_n(3, ratioPV)
+```
+
+También puedes filtrar la base tal de reducir el análisis a un subconjunto del universo, utilizando **filter**. Por ejemplo, si quisiéramos conocer el indicador solo para las comunas al sur:
+
+![Comunas de CABA](figs/ComunasCABA.png){width=250px}
+
+```{r, eval=F}
+comunas_al_sur <- c(8,4)
+PersViv_Dpto %>% filter(IDDPTO %in% comunas_al_sur) # Operador lógico!
+```
+
+Vayamos hacia algo un poquito más complejo. Si quiero obtener la misma tabla anterior pero solo para hogares *no unipersonales* en viviendas que sean *casas, casillas, ranchos o departamentos* (códigos 1 a 4, viviendas individuales más frecuentes), puedo comenzar identificando el universo:
+
+```{r}
+# busco un listado de hogares que cumplan ambas condiciones:
+HogaresNoUnipersonales <- CABA2010 %>%
+                          filter(V01<5) %>%               # qué tipo de variable es V01
+                          group_by(HOGAR_ID) %>% 
+                          summarise(Personas = n()) %>% 
+                          filter(Personas>1) %>% 
+                          select(HOGAR_ID)
+```
+
+Ahora calculemos el indicador *filtrando* aquellos hogares obtenidos anteriormente. ¿Los resultados son razonables?
+
+```{r}
+PersVivNoUni_Dpto <- CABA2010 %>%
+                      filter(HOGAR_ID %in% HogaresNoUnipersonales$HOGAR_ID) %>%  
+                      group_by(IDDPTO) %>% 
+                      summarise(ratioPV = round( n() / n_distinct(VIVIENDA_ID), 2)) %>% 
+                      top_n(3, ratioPV)
+```
+
+>Si tuviéramos que relatar lo que estamos haciendo, sería algo del tipo: "toma CABA2010, filtralo, agrupalo y calcula por cada grupo el indicador (creando la variable); finalmente selecciona qué quieres mostrar". Es una *¡composición de funciones!*.
+
+Otra operación común es la de calcular distribuciones en una variable, segmentando con determinada agrupación. Podemos ver el porcentaje de mujeres dentro de cada departamento.
+
+```{r, eval=T}
+PorcMujeres <- CABA2010 %>% 
+                  group_by(IDDPTO, Sexo) %>% 
+                  summarise(N = n()) %>% 
+                  mutate(porcM = N/sum(N) * 100) %>% 
+                  filter(Sexo == "MUJER") %>% 
+                  select(IDDPTO, porcM)
+```
+
+En el caso de que querramos la distribución por grandes grupos de edad, podemos recodificar la edad con el condicional `ifelse()` creando una nueva variable con `mutate`.
+
+```{r, eval=T}
+DistrEdadGG <- CABA2010 %>% 
+                  mutate(Edad_GG = ifelse(Edad < 15, "0-14", 
+                                          ifelse(Edad < 65, "15-49", "65+"))) %>% 
+                  group_by(IDDPTO, Edad_GG) %>% 
+                  summarise(N = n()) %>% 
+                  mutate(GG = N/sum(N)*100) %>% 
+                  select(IDDPTO, Edad_GG, GG)
+```
+
+Otras opciones de recodificación son [case_when](https://dplyr.tidyverse.org/reference/case_when.html) y [recode](https://dplyr.tidyverse.org/reference/recode.html).
+
+####  `r icon::fa("wrench")` Actividad guiada
+* Crea un nuevo objeto a partir de *CABA2010br* seleccionando y renombrando las variables de id de departamento, sexo y edad (a tu gusto el nuevo nombre).
+* Ordénala de la siguiente manera: ascendente *IDDPTO* y decreciente *edad*. 
+* La variable nativo debería ser 0 (nativo) y 1 (no nativo). Mantengámos el tipo entero.
+* Filtra por aquellas Comunas costeras.  
+* Mediante la función *mean* obtén el promedio de edad de estas comunas, mostrando el resultado según las más envejecidas primero.  
+```{r, include=F, hide = T}
+CABA2010 %>% group_by(IDDPTO) %>% summarise(EM = mean(Edad)) %>% arrange(desc(EM))
+```
+* Realiza lo anterior en una sola sentencia.
+* Mediante *mutate* computa la edad de las personas en 5 años y recalcula el promedio.
+* Obten el promedio de edad de las personas mayores a 64 años cumplidos, según departamento. Puedes utilizar algo muuuy útil: filtros dentro del argumento de summarise --> *summarise(edad_media_65mas = mean(Edad[Edad>64]))*.
+```{r, include=F, hide = T}
+CABA2010 %>% group_by(IDDPTO) %>% summarise(EM = mean(Edad[Edad>64])) %>% arrange(desc(EM))
+```
+* Mi hogar esta identificado como 705 ¿Puedes seleccionarlo y ver si registraron bien la edad del miembro más longevo?  
+```{r, include=F, hide = T}
+CABA2010 %>% filter(HOGAR_ID==705)
+```
+* Identifica (toma el ID de) un hogar cualquiera con 5 miembros. Puedes usar *slice* para tomar una observación por el número de la fila.
+```{r, include=F, hide = T, eval=F}
+# primero identifico el id
+CABA2010 %>% group_by(HOGAR_ID) %>% summarize(Personas = n()) %>% 
+  filter(Personas==5) %>% slice(10) %>% select(HOGAR_ID) 
+```
+
+***
+
+Es un problema muy común el de enriquecer de datos una tabla con otra. En este caso, no sabemos a qué departamento corresponde cada código. Nos valdremos del diccionario "dicc_DPTO", y haremos un *join*. ¿Qué tipos de *join* existen?
+
+![Tipos de join](figs/dplyr_joins.png){width=250px}
+
+Leamos el diccionario e inspeccionémoslo:
+
+```{r}
+dicc_Dptos <- read.csv("Data/dicc_DPTO.csv", header = T, sep = ";", encoding = "UTF-8") 
+```
+
+Incorporemos el nombre de los departamentos, a través de un **left_join**, especificando qué variables permiten el *match* (¿cómo sabemos cuales son?):
+
+```{r}
+CABA2010 <- CABA2010 %>% 
+                left_join(dicc_Dptos, by=c("PROV_ID", "IDDPTO"))
+                
+# mediante "trimws" saco espacios a la derecha e izquierda
+CABA2010 <- CABA2010 %>%  
+                mutate(NOMDPTO = trimws(NOMDPTO)) 
+
+# ¿Qué pasa aquí?
+table(CABA2010$NOMDPTO)
+```
+
+¿Cómo lo hubiésemos hecho con **right_join**?¿Qué hubiésemos obtenido con **inner_join**?¿Y con **full_join**?
+
+####  `r icon::fa("wrench")` Actividad
+* Incorpora a la tabla **PersVivNoUni_Dpto** el nombre del departamento *solamente*.
+
+***
+
+El paquete [**tidyr**](https://tidyr.tidyverse.org/) permite generar transformaciones muy útiles en los data.frame que de otra manera implicarían varios pasos. Los datos *tidy* son el "alma" del entorno *tidyverse*, y se basan en tres premisas simples:  
+- Cada columna es una variable.  
+- Cada fila es una observación.  
+- Cada celda es un valor.  
+Las dos funciones principales de *tidyr* son **gather** y **spread**. Veamos la función **spread**, cuyo fin es colocar como columnas distintas variables incluidas en una sola columna (distintas características de la misma observación).
+
+![](figs/spread.png){width=350px}
+
+Supongamos que quisiéramos calcular el índice de masculinidad por edad en cada departamento colocando los totales por sexo como columnas. Primero podemos contar cuantas personas son de cada sexo en cada edad.
+
+```{r}
+IM1 <- CABA2010 %>% 
+            group_by(NOMDPTO, Edad, Sexo) %>% 
+            summarise(N = n())
+
+# hola "count"
+IM2 <- CABA2010 %>% 
+            count(NOMDPTO, Sexo, Edad, name = "N")
+
+IM <- IM2 
+```
+
+La función **count** encapsula dos operaciones(agrupar y contar). Adicionalmente te permite, mediante el argumento *wt*, conteos ponderados (por ejemplo con encuestas como la eph). Ahora quisiéramos tener una categoría de sexo por columna de manera de hacer la división.
+
+```{r}
+IM <- IM %>% 
+        spread(key = Sexo, value = N)
+```
+
+Ok. Ahora podemos hacer la división y obtener el indicador. Antes de seguir, ¿qué pensás que esta haciendo la función por dentro? ¿De qué otra manera (sin usar **spread**) se te ocurre se puede calcular ese indicador?  
+
+¡En nuestro próximo encuentro veremos **gather** aplicado a un caso concreto!
+
+#### `r icon::fa("wrench")` Actividad guíada
+* Calcula el índice de masculinidad de la muestra de CABA utilizando *spread*, y selecciona el resultado para edades menores a 15.
+```{r, eval=F}
+CABA2010 %>% count(Sexo, Edad, name = "N") %>%  
+              spread(key = Sexo, value = N) %>% 
+              mutate(IM = VARON/MUJER*100) %>% 
+              filter(Edad<15)
+```
+
+* Obtiene el índice de masculinidad a la edad 0, por departamento.
+* Obtiene la cantidad de personas por grandes grupos de edad en cada departamento, posicionando cada categoría en una columna.
+```{r, eval=F}
+CABA2010 %>% mutate(Edad_GG = ifelse(Edad<15, "0-14", 
+                                              ifelse(Edad<65, "15-49", 
+                                                              "65+"))) %>% 
+                  group_by(IDDPTO, Edad_GG) %>% 
+                  summarise(N = n()) %>% 
+                  spread(key = Edad_GG, value = N)
+```
+
+* Obtén las tres personas de menor edad en relación de parentezco nivel 5.
+```{r, eval=F}
+CABA2010 %>% filter(Rel_Par=="servicio doméstico (y fliares)") %>% top_n(-3, Edad)
+```
+* Obtén el porcentaje de tipo de vivienda "departamento" (V01), por comuna, e incorpóra ese indicador a la tabla *PersViv_Dpto*. ¿Ves alguna relación a destacar?
+```{r, eval=F, include=F}
+CABA2010 %>% group_by(IDDPTO, V01) %>%  
+              summarise(N=n()) %>% 
+              mutate(porc_dpto = round(N/sum(N)*100,1)) %>% 
+              filter(V01==1) %>% 
+              select(IDDPTO, porc_dpto) %>% 
+              right_join(PersViv_Dpto, by="IDDPTO")
+```
+
+* ¿Qué preguntas se te ocurren pueden ser interesantes?
+
+####  `r icon::fa("wrench")` Actividad individual
+* Obtener la cantidad de niños en edad de asisitir al nivel educativo inicial (3,4 y 5 años), según Comuna.
+* Obtén la cantidad de viviendas con personas mayores a 64 años cumplidos.
+* Obtén la cantidad de "jefas".
+* Obtén el porcentaje de "jefas" respecto al total de "jefes/as", según departamento.
+```{r, include=F, eval=F}
+CABA2010 %>% filter(Rel_Par == "jefe") %>% group_by(NOMDPTO, Sexo) %>% summarise(N = n()) %>% 
+              mutate(porc_sexo = N/sum(N)) %>% filter(Sexo == "MUJER")
+```
+* Muestra el promedio de edad de las categorías "jefe" y "cónyuge", según sexo. Coloca las categorías de sexocomo columnas. Recuerda el operador lógico  `|` ("esto **ó** esto")
+
+```{r, include=F, eval=F}
+CABA2010 %>% filter(Rel_Par == "jefe" | Rel_Par == "cónyuge") %>% group_by(Rel_Par, Sexo) %>% summarise(em = mean(Edad)) %>% spread(Sexo,em)
+```
+* ¿En qué comuna hay mayor cantidad de personas no nativas?¿Y en términos de porcentaje?
+
+### Recursos adicionales  
+[r4ds](https://es.r4ds.hadley.nz/). Una biblia.  
+[Hoja de ayuda](https://rstudio.com/wp-content/uploads/2015/02/data-wrangling-cheatsheet.pdf)  
+[De Grande, Pablo (2016). El formato Redatam. Estudios demográficos y urbanos, 31, 3 (93) 811-832.](https://www.aacademica.org/pablo.de.grande/46.pdf)
+

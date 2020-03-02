@@ -1,0 +1,196 @@
+---
+title: "R + RStudio"
+subtitle: 'Taller de R aplicado a la demografía'
+author: "Iván Williams"
+date: "Nov - 2019"
+header-includes:
+- \titlegraphic{\centering \includegraphics[width=3cm]{figs/logoUNLU.png}}
+urlcolor: blue
+output: 
+  beamer_presentation:
+    theme: "default"
+    colortheme: "dove"
+    incremental: true
+    slide_level: 2
+    fonttheme: "structurebold"
+    fig_width: 5
+    fig_height: 5
+    fig_caption: false
+    includes:
+      in_header: mystyle.tex
+---  
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+## Este Taller {.build .flexbox .vcenter}
+
+- ¡Bienvenidos!
+- Objetivo Principal: **Comenzar/conocer/explorar**
+
+---
+
+__Programa tentativo__:  
+
+- Conocer el lenguaje  
+    - Herramientas principales para el análisis de datos (I y II)  
+    - Gráficos (III)
+- Algunas aplicaciones:   
+    - Mortalidad/Fecundidad/Migraciones (IV, V y VI)   
+- Reportes y reproducibilidad (VII)  
+
+---
+
+*¿Estamos preparados?*    
+
+- Instalación de R y RStudio  
+- Conexión a internet   
+- [Materiales](https://github.com/IvanWilli/TallerDemoR)  
+  
+---
+
+**Taller:**  
+
+- "Manos en la masa"  
+- Feedback!  
+- Agenda: lunes 18/11 feriado y 2/11 ausencia  
+
+---
+
+## ¿Qué es R? {.smaller}
+
+- Definición "oficial":  
+    - "R es un **entorno** de **software** **libre** para computación **estadística** y **gráficos**" (<https://www.r-project.org/>)  
+- Orientada a **análisis de datos**
+- Fundación R -> licencia abierta    
+
+## ¿Ventajas? | Principales
+
+- Es libre: mi caja de herramientas  
+- [Visualización](https://www.r-graph-gallery.com/index.html)  
+- Corto *lag* técnica-aplicación
+- Comunidad:  
+    - Colaboración  y Muuucha información
+    - R desde SAS (*PROC_R*), SPSS (Plug-IN *IBM® SPSS® Statistics - Essentials for R*)
+    - Cercanas (algunas):   
+        - [Latin-R](<https://latin-r.com>)  
+        - [R en Baires](https://www.meetup.com/es/renbaires/)
+        - [R-Ladies](https://gqueiroz.shinyapps.io/rshinylady/)  
+
+---
+
+![caption](figs/Rkids.jpg)
+
+---
+
+Un amigo...
+
+![](figs/Rstudio.png)
+
+---
+
+##¿Qué es R Studio?
+
+- Interfaz entre usuario y R.  
+- Entorno de desarrollo integrado (IDE)
+- Editor de texto y más cosas:
+    * Rmarkdown
+    * github
+    * Shiny
+
+## Veamos... {.smaller}
+
+\begincols
+  \begincol{.3\textwidth}
+*4 paneles  
+*Environment (radar de objetos)  
+*Files/Plots/Packages/Help  
+*[Tools](https://support.rstudio.com/hc/en-us/articles/200549016-Customizing-RStudio)
+  \endcol
+  
+  \begincol{.8\textwidth}
+![](figs/EnvRStudio.png)
+
+  \endcol
+\endcols
+
+---
+
+__En Síntesis__:
+
+![<https://moderndive.com/1-getting-started.html](figs/r_vs_rstudio_1.png)
+
+
+---
+
+## Paquetes
+
+- Conjunto de *funciones* temáticas. *Encapsular* operaciones y relacionarlas.  
+- Hay "paquetes" para todo  
+    - [Este](https://github.com/ryantimpe/brickr),  [este](https://www.r-bloggers.com/the-fun-package-use-r-for-fun/)  
+    - Haz el tuyo: *automatizar* operaciones. Que otros usuarios puedan valerse de ello.  
+- Compartir: "alguien ya resolvió tu problema"  
+- Requerimientos CRAN (Comprehensive R Archive Network): código + tests + documentación + ayuda  
+- La comunidad **legitima**  
+
+---
+
+Paquetes más populares:
+
+![https://stackoverflow.blog/2017/10/10/impressive-growth-r/](figs/pack_Rank.png)
+
+
+## ¿Se usa R en Demográfia?
+
+![Convergencia](figs/ConvE0.png)
+
+---
+
+Reportes interactivos:  
+- [Explorar datos](https://jschoeley.shinyapps.io/hmdexp/)  
+- [Comunicar](https://www.indec.gob.ar/indec/web/Institucional-Indec-IndicadoresDemograficos)
+
+---
+
+![Flujos migratorios](figs/MigrFlow.png)
+
+---
+
+![Envejecimiento](figs/MapEurope.jpg)
+
+\begin{small}
+https://doi.org/10.1016/S0140-6736(18)31194-2
+\end{small}
+
+---
+
+### No todo es *arte*:
+
+Paquetes "demográficos":  
+- Proyecciones ONU:  
+    - "wpp2019"  
+    - "Bayesian Probabilistic Population Projections: Do It Yourself" (Sevcikova et. al, 2013)  
+- DemoTools <https://github.com/timriffe/DemoTools>  
+- LexisPlotR  
+- Un montón de demógrafos creando y compartiendo...  
+
+---
+
+## Ciencia abierta
+
+- [Reproducibilidad](<https://en.wikipedia.org/wiki/Replication_crisis>)
+    - Hombros de gigantes  
+    - Misma data, código y herramientas: mismo paper.
+    - [Demographic Research](https://www.demographic-research.org/volumes/replicable_articles.htm)
+- **Entorno R muy útil!**
+
+## Comencemos...
+
+
+
+
+
+
+

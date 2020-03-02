@@ -1,0 +1,398 @@
+---
+title: "Día 4. Fuentes, tablas y mapas"
+subtitle: "Introducciones"
+output:
+  prettydoc::html_pretty:
+    theme: hpstr
+    highlight: github
+    toc: yes
+    toc_depth: 2
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Insumos para el análisis demográfico desde R
+
+## Intro
+
+¿Qué es la demografía? Algunas definiciones (tomado de [Carmichael, 2016](https://www.springer.com/gp/book/9783319232546)):
+
+>Guillard (1855; citado en Shryock, Siegel and Associates, 1973): "la historia natural y social de la especie humana o el conocimiento matemático de las poblaciones, de sus cambios generales y de su condición física, civil, intelectual y moral".
+
+>Hauser y Duncan (1959): La demografía es el estudio del tamaño, la distribución territorial y la composición de la población, los cambios en la misma y los componentes de dichos cambios, que pueden identificarse como natalidad, mortalidad, movimiento territorial (migración) y movilidad social (cambio de estado).
+
+>Weeks (1994): La demografía se refiere a prácticamente todo lo que influye, o puede ser influenciado por el tamaño de la población, su distribución, procesos, estructura o características de ella.
+
+>Preston et. al, (2001): cambios en su tamaño, sus tasas de crecimiento y su composición. La demografía es uno de las disciplinas de las ciencias sociales donde los análisis a nivel micro y macro encuentran quizás su más completa y satisfactoria articulación.
+
+Palabras clave: *especie + tamaño + composición + territorio + cambio + estado + micro/macro*.
+
+Las fuentes de datos demográficas tratan sobre distintas unidades de análisis: personas, hogares, viviendas, y sus agregaciones territoriales o por grupos. En base a esa definición, se estudian sus atributos o los eventos demográficos asociados.  Segmentamos por categorías de estudio y utilizamos distintos indicadores: proporciones, tasas, probabilidaes, razones, diferencias, etc. Lo ideal es que los insumos del indicador provengan de la misma fuente, pero no siempre es así. Veamos algunas fuentes accesibles desde R.
+
+## DEIS (Dirección de Estadísticas e Información de Salud)
+
+Recopila y consolida los registros vitales provinciales. Vayamos a la  [web](http://www.deis.msal.gov.ar/index.php/base-de-datos/) y obtengamos las defunciones del último año disponible.
+
+```{r, message=F}
+library(tidyverse)
+Def2017 <- read.csv("http://www.deis.msal.gov.ar/wp-content/uploads/2019/01/DefWeb17.csv")
+```
+
+Para interpretar la base requeriríamos el diseño de registro. Quizás nos podamos descargar la tabla de jurisdicciones y los códigos de causas. Para descargar un xlsx desde la web primero lo debemos cargar en memoria en un archivo temporal y luego leerlo de la manera habitual.
+
+```{r, message=F}
+temp = tempfile(fileext = ".xlsx")
+download.file("http://www.deis.msal.gov.ar/wp-content/uploads/2019/01/DescDef1.xlsx", 
+              destfile=temp, 
+              mode='wb')
+library(readxl)
+Provincias <-  read_xlsx(temp, sheet = "PROVRES")
+CodMuer <- read_xlsx(temp, sheet = "CODMUER")
+```
+
+Ahora te propongo incluir la descripción de la causa de muerte en la base y el nombre de la jurisdicción (vas a encontrar algunos desafíos intermedios, adelante!). Finalmente mejora los nombres resultantes de las variables.
+
+```{r, warning=F, message=F}
+Def2017j <- Def2017 %>%  
+            left_join(Provincias %>% mutate(PROVRES = as.integer(CODIGO)), by = c("PROVRES")) %>% 
+            left_join(CodMuer, by = c("CAUSA" = "CODIGO")) %>% 
+            rename(PROV = VALOR.x, CAUSA_descr = VALOR.y)
+```
+
+### `r icon::fa("wrench")`  Actividad guiada
+* ¿Cuales fueron las 10 causas más frecuentes?
+```{r, eval=F}
+Def2017j %>% group_by(CAUSA_descr) %>% summarise(N = sum(CUENTA)) %>% top_n(10, N)
+```
+
+Si quisiéramos desagregar por capítulos de los códigos [CIE10](https://es.wikipedia.org/wiki/CIE-10), podemos separar la variable *CAUSA*, mediante **separate**. Hay varios [criterios](https://tidyr.tidyverse.org/reference/separate.html) posibles de separación.
+
+```{r}
+Def2017j <- Def2017j %>% separate(col = CAUSA, sep = 1, into = c("CAP", "TIT"))
+```
+
+* ¿Cual fue la causa más frecuente en cada grupo de edad?
+```{r, eval=F}
+Def2017j %>% group_by(GRUPEDAD, CAUSA_descr) %>% summarise(N = sum(CUENTA)) %>% top_n(1, N)
+```
+
+* Sumemos las muertes por edad y dibujemos su distribución. ¿Qué problemas encuentran?
+
+```{r}
+Def2017j %>% group_by(GRUPEDAD) %>% summarise(N = sum(CUENTA)) %>%
+              filter(GRUPEDAD != "99_Sin especificar") %>% 
+              mutate(Edad_inicial = c(0, 1, seq(10,80,5)),
+                     Edad_media = Edad_inicial + c(.5, 4.5, rep(2.5, length(Edad_inicial)-2))) %>% 
+              filter(Edad_inicial < 80) %>% 
+              ggplot() + 
+              geom_line(aes(x = Edad_media, y = N/sum(N))) +
+              labs(x="Grupos de Edad", y = "Porcentaje de defunciones")
+```
+
+
+## World Population Prospects (ONU)
+
+Las proyecciones (y sus revisaciones bianuales), son publicadas en la serie [World Population Prospects](https://population.un.org/wpp/). Adicionalemnte se pone a disposición un paquete en R para la selección de sus resultados, que se va actualizando [edición a edición](https://cran.r-project.org/web/packages/wpp2019/wpp2019.pdf). Nos ofrece una serie de población y otros indicadores de interés (migración, mortalidad y fecundiad).  
+
+```{r}
+# install.packages("wpp2019")
+library("wpp2019")
+```
+
+Podemos ver qué información contiene `?wpp2019`. Si quisiéramos comparar la TGF de los países de latinoamérica, podemos acceder a los datos a través de `data(tfr)`:
+
+```{r}
+data(tfr)
+Arg_y_el_Mundo <-  tfr %>% 
+                    filter(name %in% c("World", "Argentina")) %>%
+                    gather(Period, TFR, -c(1, 2, ncol(tfr))) %>% 
+                    mutate(Anio = as.numeric(substr(Period, start = 1, stop = 4)) + 2.5)
+
+ggplot(Arg_y_el_Mundo) + 
+  geom_point(aes(x = Anio, y = TFR, color = name))
+```
+
+
+## HMD
+
+Es un proyecto que se ocupa de la recopilación de datos sobre mortalidad en el mundo (40 países, en su mayoría desarrollados) y se caracteriza por su standard de calidad. Posee un [protocolo](https://www.mortality.org/Public/Docs/MethodsProtocol.pdf) de estimación que otorga comparabilidad y accesibilidad. Hoy en día se considera el insumo principal a la hora de estudiar patrones de mortalidad entre países, siendo insumo importante del ámbito académico en la materia. Veamos su [web](https://www.mortality.org/). Para obtener tu acceso debes solicitar clave y contraseña. ¿Qué información nos provee?
+
+```{r, include=F}
+userTaller = "ivanwilliams1985@gmail.com"
+passTaller = "volveroman"
+userHFD = "ivanwilliams1985@gmail.com"
+passHFD = "52962"
+```
+
+
+```{r}
+# install.packages(HMDHFDplus)
+library(HMDHFDplus) # paquete de acceso a HMD y HFD
+
+# ¿qué países estan incluidos?
+getHMDcountries()
+
+# ¿qúe nos ofrece de cada país?
+getHMDitemavail(CNTRY = "ESP", username = userTaller, password = passTaller)
+
+# Seleccionemos España
+dataESPm = readHMDweb(CNTRY = "ESP", 
+                      username = userTaller, password = passTaller, 
+                      item = "bltper_1x5")
+# write.csv(dataESPm, "Data/dataESPm.csv", row.names = F)
+```
+
+Si bien no tenés acceso aún, el extracto se encuentra en "/Data". Grafiquemos la evolución de las tasas según lo que vimos de *ggplot*.
+
+```{r, eval=T}
+ggplot(dataESPm) + 
+  geom_line(aes(x=Age, y=mx, color=factor(Year)))+ scale_y_continuous(trans="log")
+```
+
+## HFD
+
+El repositorio Human Fertility Database se enmarca en la misma filosofía de HMD, pero trata sobre fecundidad (su protocolo puede verse [aquí](https://www.humanfertility.org/Docs/methods.pdf)). Ambos proyectos tienen su versión "low quality": [fertilitydata](https://www.fertilitydata.org/cgi-bin/index.php) y [lifetable](https://www.lifetable.de/cgi-bin/index.php) (según ellos por supuesto). La especificación de sus resutados puede verse [aquí](https://www.humanfertility.org/Docs/formats.pdf). Igual que con HMD, un usuario y contraseña son requeridos. Por ejemplo, veamos la evolución de las tasas específicas de España:
+
+```{r}
+getHFDcountries()
+
+getHFDitemavail("JPN")
+
+dataESPf = readHFDweb(CNTRY = "ESP", 
+                      username = userHFD, password = passHFD,
+                      item = "asfrRR")
+
+# write.csv(dataESPf, "Data/dataESPf.csv", row.names = F)
+```
+
+Si bien no contás con acceso aún, el extracto se encuentra en "/Data". Grafiquemos la evolución de las tasas según lo que vimos de *ggplot*.
+
+```{r}
+ggplot(dataESPf) + geom_line(aes(x=Age, y=ASFR, color=factor(Year)))
+```
+
+# Funciones mortales
+
+Una función consiste en encapsular un proceso, que recibe argumentos y devuelve un resultado. La forma es la siguiente: 
+
+>`mi_funcion <- function(arg1, arg2, ...) 
+        {proceso y 
+        resultado}`
+
+Por ejemplo, si queremos tener una función que nos diga cuantos años cumplidos tendrá una persona de edad *x* en *t* años, podemos pensarlo de este modo:
+
+```{r}
+edad_en_t_anios <- function(x, t){ # véase la palabra reservada
+  x + t
+}
+
+# Juan tiene 35. ¿Cuantos tendrá en 10 años?
+edad_en_t_anios(35, 10)
+
+# Mi hogar...
+edades = c(59, 58, 32, 30, 25, 25)
+edad_en_t_anios(edades, 10)
+```
+
+Las funciones pueden tener valores por defecto según algún criterio. Por ejemplo:
+
+```{r}
+edad_en_t_anios <- function(x, t = 25){
+  x + t
+}
+
+# Juan...
+edad_en_t_anios(35)
+
+```
+
+Adentrémonos en tablas de mortalidad. Recordemos que para su contrucción es necesario convertir *tasas* a *probabilidades* con algún supuesto sobre la distribución de las defunciones dentro de cada intervalo de edad. Hagamos una función para obtener las probabilidades de fallecimiento $q_{x,n}$ a partir de las tasas $m_{x,n}$, en intervalos de *n* años, suponiendo que en promedio los fallecidos "aportan" $a_{x,n}$ en cada intervalo $[x, x+n)$. La fórmula más utilizada aquella que supone que las defunciones se producen en promedio a mitad de período (Preston, 2001; Ortega, 1984):
+
+$$q_{x,n} = \frac{m_{x,n} n}{1+(n-a_{x,n})m_{x,n}}$$
+¡Ojo! El último valor debe ser 1 (debemos incorporarlo a la función). *Una* función posible puede ser:
+
+```{r}
+q_desde_m <- function(x, m, n, a){  # incluyo todos los argumentos sin valor por default
+  
+  q = m*n/(1+(n-a)*m)               # aplico la operación principal
+  
+  q[length(q)] = 1                  # me aseguro que TODOS fallezcan
+  
+  q_result = data.frame(x, q)       # organizo el resultado como data.frame
+  
+  return(q_result)                  # con return, doy noticia de qué objeto devuelvo
+}
+```
+
+Apliquémoslo a los datos de España en 2015 (levanta la data desde "/Data"), seleccionando los insumos y aplicando la función.
+
+```{r}
+dataESPm_simple = dataESPm %>% filter(Year == 2015) %>% select(Age, mx, ax) 
+
+q_ejemplo_simple <- q_desde_m(x = dataESPm_simple$Age, m = dataESPm_simple$mx, n = 1, a = dataESPm_simple$ax)
+
+ggplot(q_ejemplo_simple) + geom_step(aes(x, log(q)), direction = "vh")
+```
+
+Pero si la función es buena, debe ser **flexible**: debe valer para edades quinquenales por ejemplo (obtén la data desde "/Data").
+
+```{r}
+dataESPm_quinq = readHMDweb(CNTRY = "ESP", 
+                            username = userTaller, password = passTaller, 
+                            item = "bltper_5x5") # quinquenal
+
+# write.csv(dataESPm_quinq, "Data/dataESPm_quinq.csv", row.names = F)
+
+dataESPm_quinq <- dataESPm_quinq %>% filter(Year == 2015) %>% select(Age, mx, ax) 
+n_ejemplo <- c(diff(dataESPm_quinq$Age), NA)
+q_ejemplo_quinq <- q_desde_m(dataESPm_quinq$Age, dataESPm_quinq$mx, n_ejemplo, dataESPm_quinq$ax)
+ggplot(q_ejemplo_quinq) + geom_step(aes(x, log(q)))
+```
+
+Pero aprovechemos lo que diversos demógrafos vienen realizando. [DemoTools](https://github.com/timriffe/DemoTools) es un paquete (en desarrollo) con más de 120 funciones de evaluación, ajuste y estimación. Utilicemos la función de estimación de tablas abreviadas. Dentro de sus ventajas está la de estimar $a_{x,n}$ y poder extrapolar edades finales mediante alguna ley de mortalidad.
+
+```{r, eval=F}
+# install.packages("devtools")
+library(devtools)
+# install_github("timriffe/DemoTools")
+library(DemoTools)
+
+# estimo la tabla con dos esepcificaciones:
+  # el cálculo de ax se toma del método de la ONU
+ESP_LT <- LTabr(nMx = dataESPm_quinq$mx, 
+                Age = dataESPm_quinq$Age, 
+                Sex = "b")
+
+ESP_lx <- ggplot(ESP_LT) + geom_line(aes(Age, lx))
+ESP_ex <- ggplot(ESP_LT) + geom_col(aes(Age, ex))
+library(gridExtra)
+grid.arrange(ESP_lx, ESP_ex, ncol=2, top="lx y ex. España 2015. HMD data")
+```
+
+También podemos ajustar una ley de mortalidad, por ejemplo Kannisto (1994) en las edades finales:
+
+```{r, eval=F}
+# install.packages("MortalityLaws")
+library("MortalityLaws")
+
+# leyes de mortalidad disponibles: su formulación y rango de edad objetivo
+availableLaws()
+
+# estimación
+ESP_Kannisto <- MortalityLaw(x = dataESPm_quinq$Age[dataESPm_quinq$Age>=70], 
+                       mx = dataESPm_quinq$mx[dataESPm_quinq$Age>=70],
+                       law = 'kannisto')
+plot(ESP_Kannisto) # ploteo propio del paquete
+```
+
+
+# Mapas temáticos 
+
+Aquí veremos algunas herramientas básicas que nos aporta R para mostrar diferenciales jurisdiccionales en alguna variable de interés. Haremos foco en CABA. Primero obtengamos el archivo [shapefile](https://es.wikipedia.org/wiki/Shapefile), que contiene los elementos geográficos, su geo-localización y relación con el plano y algunos atributos demográficos (en nuestro caso) asociados. Haremos uso de la información disponible en [INDEC](https://www.indec.gob.ar/indec/web/Institucional-Indec-Codgeo), al nivel de departamento. El paquete *rgdal* nos permitirá integrar los archivos que lo componen y manipularlo.
+
+```{r, include=T, message=F, warning=F}
+# install.packages("rgdal")
+library(rgdal)
+Arg <- readOGR("Data/pxdptodatosok.shp", encoding = 'UTF-8')
+
+# inspeccionemos
+# class(Arg)
+# summary(Arg)
+# str(Arg@data)
+
+# me conviene determinado tipo en algunas variables
+# dplyr way
+# install.packages("spdplyr")
+library(spdplyr)
+Arg <- Arg %>% mutate(pers_totales = as.integer(as.character(personas)), # por que?
+                      viv_part_h = as.integer(as.character(viv_part_h)),
+                      pers_viv = pers_totales/viv_part_h)
+```
+
+Quedémonos con CABA, de la mano de *spdplyr* (sí, esta en todos lados):
+```{r, include=T}
+CABA <- Arg %>% filter(codpcia %in% "02")
+
+# plot base
+plot(CABA, border=gray(0.5))
+points(coordinates(CABA))
+```
+
+
+Usaremos el paquete [leaflet](https://rstudio.github.io/leaflet/), que permite realizar mapas interactivos embebibles en documentos o webs. Generaremos una escala de 5 colores, usando una paleta predefinida (más [opciones](https://rstudio.github.io/leaflet/colors.html)). 
+
+```{r}
+# install.packages(leaflet)
+library(leaflet)
+qpal <- colorQuantile("Blues", CABA@data$pers_viv, n = 5)
+CABA_map <- leaflet(CABA) %>%
+                addPolygons(fillColor = ~qpal(pers_viv),
+                            color = "grey",
+                            fillOpacity = .8)
+CABA_map     
+```
+
+Mejorémoslo un poco agregando una capa de OpenStreetMaps (por defecto en leaflet) y etiquetas:
+
+```{r}
+CABA_map <- CABA_map %>%
+                addTiles() %>%
+                addPolygons(fillColor = ~qpal(pers_viv),
+                            color = "grey",
+                            fillOpacity = .4,
+                            popup = ~provincia, 
+                            label = ~paste0("Ratio: ",round(pers_viv,2)))
+CABA_map
+```
+
+¿Donde estamos ahora? Los [marcadores](https://rstudio.github.io/leaflet/markers.html) (o puntos) pueden ser útiles. De paso podemos agregar otra [capa](http://leaflet-extras.github.io/leaflet-providers/preview/index.html).
+
+```{r}
+CABA_map <-CABA_map %>% addMarkers(lat = -34.599912, lng = -58.406399, popup = "UNLu - CABA") %>% 
+                        addProviderTiles(providers$Stamen.Toner) %>% 
+                        addLegend("bottomright", pal = qpal, values = ~pers_viv,
+                        title = "Distribución por quintiles")
+CABA_map             
+```
+
+>"Nadie ignora que el Sur empieza del otro lado de Rivadavia" (El Sur, Borges, 1944).
+
+Finalmente con una flecha señalo el recorrido desde mi casa para llegar hasta aquí, posiciono la vista del mapa, y lo guardo para compartir.
+```{r}
+# install.packages("leaflet.minicharts")
+library("leaflet.minicharts")
+CABA_map <- CABA_map %>% addFlows(lat0 = -34.609492, lng0 = -58.422795,
+                                  lat1 = -34.599912, lng1 = -58.406399,
+                                  color = "green",
+                                  flow = .5, opacity = .5) %>% 
+                          setView(lat = -34.603095, lng = -58.410977, zoom = 14) 
+CABA_map 
+
+# Guardemos...
+# install.packages(htmlwidgets)
+library(htmlwidgets)
+saveWidget(CABA_map, file="CABA_map.html")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

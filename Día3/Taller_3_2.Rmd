@@ -1,0 +1,142 @@
+---
+title: "Día 3. Diagramas de Lexis"
+subtitle: "Recursos"
+output:
+  prettydoc::html_pretty:
+    theme: hpstr
+    highlight: github
+    toc: yes
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, results = "hide", message=FALSE)
+```
+
+## LexisPLotR
+
+*Gráfico* útil para representar la dinámica poblacional de *ingreso* y *permanencia* en un estadío demográfico según edad, tiempo calendario (o período) y año de nacimiento (o cohorte). La aplicación más común es en mortalidad, pero hay otras.  
+
+![Fuente: Preston et. al (2001)](figs/LexisPreston.png){width=300px}
+
+Los elementos principales de análisis son:
+
+* Líneas de vidas (45°)  
+* Segmentos horizontales y verticales  
+* Superficies  
+
+![](figs/LexisElements.png)
+
+Ejemplos de uso del diagrama utilizando R:
+
+* Mortalidad por conflictos armados (replicable):
+![Fuente: Alburez et. al (2019)](figs/AlburezLexis.jpg)
+Fuente: Alburez et. al (2019)
+
+* Sobremortalidad masculina:
+![Fuente: Schöley & Willekens (2017)](figs/LexisMortalityMF.png)
+Fuente: Schöley & Willekens (2017)
+
+Contruyamos el diagrama básico del inicio. Para eso haremos uso del paquete **LexisPloR** creado por Philipp Ottolinger (gracias Otto). Construyó un set de funciones basadas en *ggplot* que facilita la creación de diagramas haciéndolo un ejercicio intuitivo.
+
+```{r}
+# install.packages("devtools")
+devtools::install_github("ottlngr/LexisPlotR")
+library(LexisPlotR)
+library(tidyverse)
+
+# creamos el objeto "mylexis", definiendo el rango de sus ejes. Aquí podemos especificar un "delta" si es que nos interesan los grupos quinquenales.
+mylexis <- lexis_grid(year_start = 2010, year_end = 2019, age_start = 0, age_end = 10)
+
+# pintamos la edad 2
+mylexis <- lexis_age(lg = mylexis, age = 2)
+
+# pintamos el año 2015, de gris en este caso.
+mylexis <- lexis_year(lg = mylexis, year = 2015, fill = "grey")
+
+# Ahora la cohorte 2015
+mylexis <- lexis_cohort(lg = mylexis, cohort = 2015)
+
+# Una línea de vida, ¡elemento fundamental del diagrama!
+mylexis <- lexis_lifeline(lg = mylexis, birth = "2001-09-23", lwd = 1, colour = "pink")
+
+# Al ser un objeto ggplot, podemos incorporarle atributos, como el título
+mylexis <- mylexis + ggtitle("Diagrama de Lexis. Elementos de análisis") 
+
+# Para crear polígonos, el autor se basa en la geometría "geom_polygon". Creamos un cuadrado. El orden de los datos es importante. Además podemos crear muchos polígonos al mismo tiempo señalando los grupos.
+square <- data.frame(group = c(1, 1, 1, 1),
+                       x = c("2012-01-01", "2012-01-01", "2013-01-01", "2013-01-01"),
+                       y = c(4, 5, 5, 4))
+# Creamos el triángulo.
+mylexis <- lexis_polygon(lg = mylexis, x = square$x, y = square$y, group = square$group)
+triangle <- data.frame(group = c(1, 1, 1),
+                       x = c("2017-01-01", "2018-01-01", "2018-01-01"),
+                       y = c(6, 6, 7))
+mylexis <- lexis_polygon(lg = mylexis, x = triangle$x, y = triangle$y, group = triangle$group)
+
+# Imprimimos!
+mylexis
+```
+
+Adicionalmente, si trabajamos con población donde la exposición puede ser truncada (por derecha o izquierda), podemos graficar líneas de vida que respeten ese comportamiento. Tambien podemos señalar con una cruz la ocurrecnia del evento de salida que se estudia.
+
+```{r}
+mylexis <- lexis_lifeline(lg = mylexis, 
+                          birth = "2005-09-23", 
+                          entry = "2012-06-11", exit = "2015-02-27", lineends = T,
+                          colour = "red")
+mylexis
+```
+
+### `r icon::fa("wrench")`Actividad guiada
+Construyamos una tabla de cohorte a partir de un grupo de estudiantes que iniciaron con 3 años de edad su trayectoria educativa el 3/3/2000, y donde la *salida* es dejar el estudio (sea cual sea el nivel alcanzado) por primera vez antes de retomar o abandonar definitivamente (¿qué sería $\omega$?). Simulemos su comportamiento:
+
+```{r}
+set.seed(100)
+clase <- data.frame(edad_inicio = runif(n = 100, min = 3, max = 4), 
+                    tiempo_exp = rgamma(n = 100, shape = 40, rate = 2)) %>% 
+                    mutate(edad_salida = edad_inicio + tiempo_exp)
+ggplot(clase) + 
+  geom_density(aes(x=edad_salida), fill=2, alpha=.1)
+```
+
+Contruyamos el diagrama de Lexis de esta cohorte:
+```{r}
+mylexis     <- lexis_grid(year_start = 2000, year_end = 2025, age_start = 3, age_end = 30)
+nacimiento  = as.Date("2000-03-03") - clase$edad_inicio * 365.25
+salida      = nacimiento + clase$tiempo_exp * 365.25
+mylexis     <- lexis_lifeline(lg = mylexis, 
+                          birth = nacimiento, 
+                          entry = "2000-03-03", 
+                          exit = salida, lineends = T,
+                          colour = 4, alpha = 1/3)
+mylexis
+```
+
+Si tuviéramos que estimar...
+```{r}
+# la edad media de salida
+mean(clase$edad_salida)
+
+# la probablidad de "sobrevivir" a la edad 18
+clase %>% filter(edad_salida >= 18) %>% summarise(n()) / nrow(clase)
+
+# probablidad de abandonar en los 20 años cumplidos 
+clase %>% filter(edad_salida >= 20 & edad_salida < 21) %>% summarise(n()) /
+clase %>% filter(edad_salida >= 20) %>% summarise(n())
+```
+
+¿Otras preguntas interesantes?
+
+## Repliquemos...
+Figura 1.a de [Acosta, E & van Raalte A. "APC curvature plots: Displaying nonlinear age-period-cohort patterns on Lexis plots"](https://www.demographic-research.org/volumes/vol41/42/). 
+
+### `r icon::fa("wrench")`Actividad guiada
+* Crea un diagráma de Lexis y señala la línea de vida de tu pariente más jóven.
+* Crea un diagrama de Lexis señalando los fallecidos en 2015 de edad 15
+* Diferencia lo anterior por cohorte, con dos colores distintos.
+
+
+## Recursos Adicionales
+* <https://cran.r-project.org/web/packages/LexisPlotR/vignettes/LexisPlotR.html>  
+* Hulíková Tesárková & Kurtinová. Application of “Lexis” Diagram: Contemporary Approach to Demographic Visualization and Selected Examples of Software Applications.

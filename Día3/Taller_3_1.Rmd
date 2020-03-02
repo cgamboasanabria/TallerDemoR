@@ -1,0 +1,253 @@
+---
+title: "Día 3. Gráficos con ggplot"
+subtitle: "Introducción a la visualización de datos en R"
+output:
+  prettydoc::html_pretty:
+    theme: hpstr
+    highlight: github
+    toc: yes
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, results = "hide", message=FALSE)
+```
+
+En esta sección vamos a explorar la utilidad de R para la visualización de contenido estadístico. Empezaremos con el paquete [ggplot](https://ggplot2.tidyverse.org/). Haremos gráficos en base a la población censada en 2001 y 2010, más específicamente observando su distribución etaria.
+
+###¿Qué es ggplot?
+
+* Tiene sus fundamentos en la gramática de gráficos (Wilkinson, 2005). ¿Qué es un gráfico estadístico?. La idea es "generalizar"" su construcción tal que un paquete no sea una colección de *casos especiales*.
+
+* Todo gráfico esta compuesto por:
+    - **Data**, con una estética determinada: tamaño (más utilizada en continuas), color y forma (categóricas).
+    - **Capas** de expresión geométrica de los datos (puntos, líneas, barras) y transformación estadísticas posibles (segmentar por percentiles, o ajustar un modelo lineal). Lás más comunes son:
+        - Puntos (*geom_point*)  
+        - Líneas (*geom_line*)  
+        - Barras (*geom_bar*)  
+    - **Escalas**, las medidas relativas con las cuales interpretar los datos y su transformación visual; básicamente el sistema de coordenadas, los ejes y leyenda.
+
+### Hacia la pirámide de población
+
+Obtengamos la población censal por provincia de los dos últimos censos.
+
+```{r}
+library(tidyverse)
+N_Censo <- readxl::read_xlsx(path = "Data/N-01y10.xlsx", sheet = 1)
+```
+
+Seleccionemos CABA y veamos su distribución por edad en 2010. 
+
+```{r}
+
+N_CABA <- N_Censo %>% filter(PROV_NOMBRE == "CIUDAD AUTONOMA DE BUENOS AIRES" & CENSO==2010)
+
+# genero un primer gráfico con los tres elementos básicos:
+ggplot(data = N_CABA,                 # data
+       aes(x = EDAD, y = VARON)) +      # estética
+       geom_line()                     # geometría
+```
+
+Podemos compararla con otras provincias, como Formosa y Entre Ríos, distinguiendo provincias por color. ¿Qué observaciones podemos hacer?
+
+```{r}
+# creo un vector con las seleccionadas, y filtro la base
+Provincias = c("FORMOSA", "ENTRE RIOS", "CIUDAD AUTONOMA DE BUENOS AIRES")
+N_Provs <- N_Censo %>% filter(PROV_NOMBRE %in% Provincias & CENSO==2010)
+
+# genero un primer gráfico con los tres elementos básicos:
+ggplot(data = N_Provs,                                       # data
+       aes(x = EDAD, y = VARON, colour = PROV_NOMBRE)) +     # estética
+       geom_line()                                           # geometría
+```
+
+
+Podemos adicionar otra capa geométrica de puntos distinguiendo adicionalmente por *forma* y color solo (atributo estético adicional) y persistir el gráfico como un objeto más en el entorno R:
+
+```{r}
+g_Provs <- ggplot(data = N_Provs, 
+                  aes(x= EDAD, y = VARON, shape = PROV_NOMBRE, color = PROV_NOMBRE)) + 
+           geom_line() +
+           geom_point()
+g_Provs
+```
+
+Agreguemos [un título, un subtítulo](https://ggplot2.tidyverse.org/reference/labs.html), modifiquemos el tamaño del punto, la posición y título de la leyenda, y  especifiquemos las marcas en el eje x:
+
+```{r}
+g_Provs <- g_Provs +  # llamamos al objeto anterior
+  labs(title = "Población de varones por edad. Año 2010",
+       subtitle = "Provincias seleccionadas",
+       caption = "Fuente: INDEC",
+       x = "Edad", y = "Varones") +
+  theme(legend.position = "bottom", 
+        legend.direction = "horizontal",
+        legend.title = element_blank()) +
+  scale_x_continuous(breaks = seq(0,100,10))
+g_Provs
+```
+
+Podemos definir una paleta de colores, cambiar la [temática](https://ggplot2.tidyverse.org/reference/theme.html) de fondo por una más simple y suavizar las series. Adicionalmente mediante [ggsave](https://ggplot2.tidyverse.org/reference/ggsave.html) podemos salvar el objeto y guardarlo como imágen en la extensión que se desee.
+
+```{r, warning=FALSE}
+mi_paleta <- c("#000000", "#E69F00", "#56B4E9") # sistema Hexadecimal de colores, una opción
+
+g_Provs <- g_Provs +
+  scale_colour_manual(values = mi_paleta) +
+  theme_bw() +
+  geom_smooth(method = 'loess', span=.5)
+
+ggsave(filename = "g_Provs.pdf", plot = g_Provs)
+
+g_Provs
+```
+
+Podés encontrar [más colores y paletas prediseñadas](http://www.cookbook-r.com/Graphs/Colors_(ggplot2)/), temáticas [predefinidas](https://ggplot2.tidyverse.org/reference/ggtheme.html) o mediante el paquete [ggthemes](https://yutannihilation.github.io/allYourFigureAreBelongToUs/ggthemes/), y formas de suavizar una serie continua (aquí utilizamos *?loess*).  
+
+Para continuar nuestro camino hacia la pirámide de población con *ggplot*, conviene que *sexo* sea una única variable y categórica (factor): premisa de *ggplot*. Para esto utlizamos el mágico *gather*.
+
+![Fuente: Rstudio](figs/gather.png){width=300px}
+
+Quedémonos con Entre Ríos:
+
+```{r}
+library(tidyverse)
+N_ER <- N_Provs %>% 
+              gather(VARON, MUJER, key="Sexo", value="N") %>% 
+              mutate(Sexo = as.factor(Sexo)) %>% 
+              filter(PROV_NOMBRE == "ENTRE RIOS") %>% 
+              select(-PROV_CODIGO)
+head(N_ER)
+```
+
+Al momento de trabajar con *barras*, *fill* equivale a *color* de líneas o puntos. Ahora podemos incluir el condicional de signo dentro de la definición de ejes:
+
+```{r}
+Pir_ER <- ggplot(data = N_ER, 
+                aes(x = EDAD, y = ifelse(Sexo == "VARON", -N, N), fill = Sexo)) +
+                geom_bar(stat = "identity") # que ggplot no trate de contar cual histograma
+Pir_ER
+```
+
+Ups! Hay que dar vuelta (flip) la pirámide. Podemos hacerle unos cambios adicionales de paso: fijar los límites horizantales y mostrar sólo absolutos, incluir titulo, subtítulo y fuente, cambiar las etiquetas de ambos ejes, incluir un *tema* distinto y cambiar el color de las barras.      
+
+```{r, message=F}
+Pir_ER <- Pir_ER +
+            coord_flip() +
+            scale_y_continuous(labels = abs, limits = max(N_ER$N) * c(-1,1)) +
+            scale_x_continuous(labels = seq(0,110,5), breaks = seq(0,110,5), limits=c(0, 110)) +
+            labs(y = "Población", x = "Edad") +
+            labs(title = "Pirámide de población. Año 2010",
+                  subtitle = "Entre Ríos",
+                  caption = "Fuente: en base a INDEC") +
+            scale_fill_manual(values = c("red", "green")) +
+            theme_bw()
+Pir_ER  
+```
+        
+Probablemente querramos comparar provincias, para lo que podemos usar las opciones de [faceting](https://ggplot2.tidyverse.org/reference/facet_grid.html) :
+
+```{r}
+N_Provs <- N_Censo %>% 
+              filter(PROV_NOMBRE %in% Provincias & CENSO==2010) %>% 
+              gather(VARON, MUJER, key="Sexo", value="N") %>% 
+              mutate(Sexo = as.factor(Sexo)) 
+
+Pirs<- ggplot(data = N_Provs) + 
+                aes(x = EDAD, y = ifelse(Sexo == "VARON", -N, N), fill = Sexo) +
+                geom_bar(stat = "identity") +
+                coord_flip() +
+                scale_y_continuous(labels = abs,
+                                   limits = max(N_Provs$N) * c(-1,1)) +
+                labs(y = "Población", x = "Edad") +
+                labs(title = "Pirámide de población. Año 2010",
+                  subtitle = "Entre Ríos",
+                  caption = "Fuente: INDEC") +
+                scale_fill_manual(values = c("red", "green")) +
+                theme_dark() +
+                facet_grid(~PROV_NOMBRE)
+Pirs
+```
+
+>¿Pero... podríamos haber generado lo anterior en una sola sentencia? *ggplot* es un componente más del entorno tidyverse.
+
+¿El gráfico nos permite inferir estadíos transicionales? Mmm... Deberíamos verlo en porcentajes. Para esto primero debemos obtener el total por provincia y unirlos. Obtengamos el total por sexo y lo matcheamos:
+
+```{r}
+library(tidyr)
+N_Provs <- N_Provs %>% 
+              group_by(PROV_NOMBRE, Sexo, EDAD) %>% 
+              summarise(N = sum(N)) %>%
+              inner_join(N_Provs %>% 
+                          group_by(PROV_NOMBRE) %>% 
+                          summarise(NT = sum(N))) %>% 
+              mutate(Np = round(N/NT*100,2))%>% 
+              select(-N,-NT)
+```
+
+¡Ahora sí! Estamos en condiciones percibir visualmente que nos dice el stock por edad y sexo: envejecimiento, efecto migratorio, patrones de declaración censal de edad. ¿Qué mas? Quizás si fuera un gráfico interactivo... (spoiler).
+
+```{r}
+PirsPorc <- ggplot(N_Provs) + 
+                aes(x = EDAD, y = ifelse(Sexo == "VARON", -Np, Np), fill = Sexo) +
+                geom_bar(stat = "identity") +
+                coord_flip() +
+                scale_y_continuous(labels = abs, limits = max(N_Provs$Np) * c(-1,1)) +
+                labs(y = "Porcentaje de población", x = "Edad") +
+                theme_bw() +
+                scale_fill_manual(values =c("blue", "gold"))+
+                facet_grid(~PROV_NOMBRE)
+PirsPorc
+```
+
+Un bonus track utilzando [plotly](https://plot.ly/ggplot2/):
+```{r}
+# install.packages(plotly)
+library(plotly)
+PirsPorc_plotly <- ggplotly(PirsPorc + aes(text = Np), tooltip= "text") 
+```
+
+***
+
+#### Otras Visualizaciones...
+
+S. Preston (1975) encontró una relación matemática (al menos) entre la esperanza de vida y el producto per cápita. Veamos que ocurre específicamente en el Continente Americano utilizando el paquete *gapminder*.
+
+```{r}
+library(gapminder)
+p <- ggplot(filter(gapminder, continent == "Americas"),
+            aes(x = gdpPercap, y = lifeExp))
+p + geom_point() # dispersión
+p + geom_point(aes(color = country), alpha = (1/3), size = 3, show.legend = F) 
+p1 <- p + geom_point(aes(color = country, size = pop), alpha = 1/3) # fijate el lugar de size 
+p1 <- p1 + geom_smooth(lwd = 1, lty = 2, color = 2, se = FALSE)
+p1
+p + geom_point(alpha = 1/3, size = 3) + facet_wrap(~ country) +
+    geom_smooth(lwd = 1.5, se = FALSE) +
+    theme_void()
+```
+
+¿Componer gráficos en una sola hoja? (tomado de [Jenny Bryan](https://stat545.com/))
+```{r}
+# install.packages("gridExtra")
+library(gridExtra)
+p2 <- ggplot(filter(gapminder, year==1952 & continent!="Oceania"), aes(x = lifeExp, color = continent))       + geom_density()
+p3 <- ggplot(filter(gapminder, year==2007 & continent!="Oceania"), aes(x = lifeExp, color = continent))       + geom_density()
+grid.arrange(p2, p3, nrow = 2, heights = c(0.5, 0.5))
+```
+
+¿Qué problemas encuentras en este arreglo?
+
+
+
+
+
+####   `r icon::fa("wrench")` Actividad
+* Realice un gráfico de línea con el índice de masculinidad por edad de la provincia que prefiera.  
+* Haz el  mismo grpafico pero comparando dos provincias.  
+* Construir la pirámide de población de CABA, colocando ambos censos uno debajo del otro. Para posicionarlo de esta manera podés ver las opciones de *facet_grid* en la hoja de ayuda.  
+ 
+### Material
+*Estas notas fueron hechas siguiendo principalmente [The Hitchhiker's Guide to Ggplot2](https://leanpub.com/hitchhikers_ggplot2) y el curso de [Jenny Bryan](https://stat545.com/).  
+*[ggplot2 (Wickham, H.)](http://www.ievbras.ru/ecostat/Kiril/R/Biblio_N/R_Eng/Wickham2016.pdf).  
+*[Hoja de Ayuda](https://rstudio.com/wp-content/uploads/2015/03/ggplot2-cheatsheet.pdf).  

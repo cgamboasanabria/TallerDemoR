@@ -1,0 +1,82 @@
+---
+title: "TP Final"
+subtitle: "Taller de R aplicado a la Demografía"
+output:
+  prettydoc::html_pretty:
+    theme: hpstr
+    highlight: github
+    toc: yes
+    toc_depth: 2
+---
+  
+### Hemos llegado:
+  
+![](aplausos.gif)
+
+
+### Consigna
+
+Te han asignado la realización de un reporte sobre la población "X" (en el caso en que no estuviste el día de la asignación podés elegir la población que quieras). Los datos los podés encontrar en "Día5/Data/Poblaciones". El objetivo es caracterizar el proceso de envejecimiento en el periodo, el cual, siguiendo a [CELADE](https://www.cepal.org/es/temas/envejecimiento), lo podemos definir como el aumento progresivo de la proporción de las personas de 60 años y más con respecto a la población total. Si bien en el ejercicio solo contaremos con dos observaciones de cada población, estas son lo suficientemente distantes como para señalar si ocurrió o esta ocurriendo el fenómeno. Específicamente, se solicita:
+
+* Crear un reporte RMarkdwon que produzca el informe en *html*.
+* Asignar un título al reporte que incluya el número de población recibida, tu nombre como autor/a y el mes y año de producción.
+* Contenidos Mínimos del cuerpo del informe:
+    - Un párrafo inicial donde se explicite el objetivo del reporte y se mencione la cantidad de población total observada en cada punto del tiempo, mediante chunks inline.
+    - Mostrar las pirámides de población de ambos períodos en un mismo gráfico, mediante el paquete *ggplot2*, y su función *facet*. Acuerdate que si en el chunk guardas el gráfico como objeto, debes "llamarlo" para que lo imprima.
+    - En un párrafo final describir brevemente qué te llama la atención de lo observado.
+    
+IMPORTANTE `r icon::fa("exclamation")` Solo es relevante a efectos del taller:  
+  * Poder crear el reporte y enviar el html resultante  
+  * Poder incluir código R en un párrafo  
+  * Incluir un gráfico en el reporte  
+No serán evaluadas conceptualmente las conclusiones. El resultado de la evaluación será tarde o temprano "Aprobado", excepto que no haya entrega `r icon::fa("sad-tear")`.
+
+**Fecha de entrega final: 29/2/2020**
+
+Manos a la obra...
+
+![Hasta pronto!](finalImage.jpg)
+
+```{r, echo=F, eval=F}
+library(HMDHFDplus)
+library(tidyverse)
+userTaller = "ivanwilliams1985@gmail.com"
+passTaller = "volveroman"
+# getHMDitemavail(CNTRY = "ESP", username = userTaller, password = passTaller)
+# countries <- getHMDcountries()
+sample_c <- sample(countries, 15)
+for(i in 1:length(sample_c)){
+  # i = 1
+  count <- readHMDweb(CNTRY = sample_c[i], item = "Exposures_1x1", 
+                      username = userTaller, password = passTaller) %>% 
+    filter(Year %in% range(Year)) %>%
+    rename(Año=Year, Edad=Age, Mujeres=Female, Varones=Male) %>% 
+    select(Año, Edad, Mujeres, Varones)
+  write.csv(count, paste0("C:/Proyectos/TallerDemoR/Taller/Día5/Data/Poblacion_",i,".csv"), row.names = F)
+}
+
+# lectura
+N_Censo <- read.csv("Taller/Día5/Data/Poblacion_15.csv") %>% 
+  gather(Mujeres, Varones, key="Sexo", value="N") %>% 
+  mutate(Sexo = as.factor(Sexo))
+# merge para porc
+N_Censo <- N_Censo %>%  
+  group_by(Año, Sexo, Edad) %>% 
+  summarise(N = sum(N)) %>%
+  inner_join(N_Censo %>% 
+               group_by(Año) %>% 
+               summarise(NT = sum(N))) %>% 
+  mutate(Np = round(N/NT*100,2))%>% 
+  select(-N,-NT)
+# graf
+ggplot(N_Censo) + 
+  aes(x = Edad, y = ifelse(Sexo == "Varones", -Np, Np), fill = Sexo) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  scale_y_continuous(labels = abs, limits = max(N_Censo$Np) * c(-1,1)) +
+  labs(y = "Porcentaje de población", x = "Edad") +
+  theme_bw() +
+  scale_fill_manual(values =c("blue", "gold"))+
+  facet_grid(~Año)
+```
+
